@@ -22,8 +22,7 @@ namespace xlang_bridge_runner {
     static SunshineCallTable g_Table = {0};
     
     // To maintain a session context, usually Sunshine spins up a stream session
-    // Because we bypassed stream.cpp, we create the mail channels globally for the bridge.
-    static safe::mail_t g_bridge_mail;
+    // We will use the global mail manager since Sunshine hardcodes frame dispatch to mail::man.
 
     bool StartVideo(const char* display, int width, int height, int fps, int bitrate) {
         BOOST_LOG(info) << "[XBridge] StartVideo: " << (display ? display : "default") 
@@ -42,19 +41,27 @@ namespace xlang_bridge_runner {
             config::video.output_name = display;
         }
 
-        if(!g_bridge_mail) {
-            g_bridge_mail = std::make_shared<safe::mail_raw_t>();
-        }
-
         std::thread([cfg]() {
             platf::set_thread_name("xbridge::video");
-            video::capture(g_bridge_mail, cfg, nullptr);
+            // capture() takes a mail object, though it internally pumps to mail::man for some queues
+            // We pass the global mail manager's interface.
+            video::capture(mail::man, cfg, nullptr);
         }).detach();
 
         // NAL draining thread
         std::thread([]() {
             platf::set_thread_name("xbridge::video_drain");
-            auto packets = g_bridge_mail->queue<video::packet_t>(mail::video_packets);
+
+            // MUST subscribe to video_packets IMMEDIATELY before sleeping
+            // so that we don't miss the initial IDR containing SPS/PPS
+            auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
+
+            // Give the encoder ~1 second to spin up and compile shaders
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            
+            BOOST_LOG(info) << "[XBridge] Bootstrapping IDR request to spin up encoder...";
+            auto ev_idr = mail::man->event<bool>(mail::idr);
+            ev_idr->raise(true);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
                 auto& packet = *packetOpt;
@@ -78,18 +85,14 @@ namespace xlang_bridge_runner {
             config::audio.sink = audioSink;
         }
 
-        if(!g_bridge_mail) {
-            g_bridge_mail = std::make_shared<safe::mail_raw_t>();
-        }
-        
         std::thread([cfg]() {
             platf::set_thread_name("xbridge::audio");
-            audio::capture(g_bridge_mail, cfg, nullptr);
+            audio::capture(mail::man, cfg, nullptr);
         }).detach();
 
         std::thread([]() {
             platf::set_thread_name("xbridge::audio_drain");
-            auto packets = g_bridge_mail->queue<audio::packet_t>(mail::audio_packets);
+            auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
                 auto& packet = *packetOpt;
@@ -105,10 +108,8 @@ namespace xlang_bridge_runner {
 
     void StopProcessing() {
         BOOST_LOG(info) << "[XBridge] Stop requested";
-        if(g_bridge_mail) {
-            auto shutdown_event = g_bridge_mail->event<bool>(mail::shutdown);
-            shutdown_event->raise(true);
-        }
+        auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+        shutdown_event->raise(true);
     }
 
     int InjectInput(const uint8_t* pEventData, int cbSize) {

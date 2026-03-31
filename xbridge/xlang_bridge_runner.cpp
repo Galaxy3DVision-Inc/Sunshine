@@ -204,10 +204,12 @@ namespace xlang_bridge_runner {
         if (res == 0) {
             BOOST_LOG(info) << "[XBridge] Sunshine Bridge Loaded Successfully. Host yield active.";
 
-            // Block the main thread indefinitely to simulate service daemon
-            while (true) {
+            // Block the main thread until shutdown is triggered
+            auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+            while (!shutdown_event->peek()) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
+            BOOST_LOG(info) << "[XBridge] Shutdown triggered. Exiting host loop.";
         }
         return res;
     }

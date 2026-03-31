@@ -21,8 +21,12 @@ namespace xlang_bridge_runner {
 
     static SunshineCallTable g_Table = {0};
     
-    // To maintain a session context, usually Sunshine spins up a stream session
-    // We will use the global mail manager since Sunshine hardcodes frame dispatch to mail::man.
+    // To allow dynamic control, we spin up independent mail sessions
+    // instead of relying on the global mail::man router.
+    static std::mutex g_VidMutex;
+    static safe::mail_t g_VideoMail = nullptr;
+    static std::mutex g_AudMutex;
+    static safe::mail_t g_AudioMail = nullptr;
 
     bool StartVideo(const char* display, int width, int height, int fps, int bitrate) {
         BOOST_LOG(info) << "[XBridge] StartVideo: " << (display ? display : "default") 
@@ -41,26 +45,32 @@ namespace xlang_bridge_runner {
             config::video.output_name = display;
         }
 
-        std::thread([cfg]() {
+        safe::mail_t mailSession;
+        {
+            std::lock_guard<std::mutex> lock(g_VidMutex);
+            g_VideoMail = std::make_shared<safe::mail_raw_t>();
+            mailSession = g_VideoMail;
+        }
+
+        std::thread([cfg, mailSession]() {
             platf::set_thread_name("xbridge::video");
-            // capture() takes a mail object, though it internally pumps to mail::man for some queues
-            // We pass the global mail manager's interface.
-            video::capture(mail::man, cfg, nullptr);
+            // capture() takes a mail object natively
+            video::capture(mailSession, cfg, nullptr);
         }).detach();
 
         // NAL draining thread
-        std::thread([]() {
+        std::thread([mailSession]() {
             platf::set_thread_name("xbridge::video_drain");
 
             // MUST subscribe to video_packets IMMEDIATELY before sleeping
             // so that we don't miss the initial IDR containing SPS/PPS
-            auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
+            auto packets = mailSession->queue<video::packet_t>(mail::video_packets);
 
             // Give the encoder ~1 second to spin up and compile shaders
             std::this_thread::sleep_for(std::chrono::seconds(1));
             
             BOOST_LOG(info) << "[XBridge] Bootstrapping IDR request to spin up encoder...";
-            auto ev_idr = mail::man->event<bool>(mail::idr);
+            auto ev_idr = mailSession->event<bool>(mail::idr);
             ev_idr->raise(true);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
@@ -74,6 +84,17 @@ namespace xlang_bridge_runner {
         return true;
     }
 
+    void StopVideo() {
+        BOOST_LOG(info) << "[XBridge] StopVideo requested";
+        std::lock_guard<std::mutex> lock(g_VidMutex);
+        if (g_VideoMail) {
+            if (auto q = g_VideoMail->queue<video::packet_t>(mail::video_packets)) {
+                q->stop();
+            }
+            g_VideoMail.reset();
+        }
+    }
+
     bool StartAudio(const char* audioSink) {
         BOOST_LOG(info) << "[XBridge] StartAudio: " << (audioSink ? audioSink : "default");
 
@@ -85,14 +106,21 @@ namespace xlang_bridge_runner {
             config::audio.sink = audioSink;
         }
 
-        std::thread([cfg]() {
+        safe::mail_t mailSession;
+        {
+            std::lock_guard<std::mutex> lock(g_AudMutex);
+            g_AudioMail = std::make_shared<safe::mail_raw_t>();
+            mailSession = g_AudioMail;
+        }
+
+        std::thread([cfg, mailSession]() {
             platf::set_thread_name("xbridge::audio");
-            audio::capture(mail::man, cfg, nullptr);
+            audio::capture(mailSession, cfg, nullptr);
         }).detach();
 
-        std::thread([]() {
+        std::thread([mailSession]() {
             platf::set_thread_name("xbridge::audio_drain");
-            auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
+            auto packets = mailSession->queue<audio::packet_t>(mail::audio_packets);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
                 auto& packet = *packetOpt;
@@ -104,6 +132,17 @@ namespace xlang_bridge_runner {
         }).detach();
 
         return true;
+    }
+
+    void StopAudio() {
+        BOOST_LOG(info) << "[XBridge] StopAudio requested";
+        std::lock_guard<std::mutex> lock(g_AudMutex);
+        if (g_AudioMail) {
+            if (auto q = g_AudioMail->queue<audio::packet_t>(mail::audio_packets)) {
+                q->stop();
+            }
+            g_AudioMail.reset();
+        }
     }
 
     void StopProcessing() {
@@ -147,11 +186,18 @@ namespace xlang_bridge_runner {
 #endif
 
         g_Table.StartVideo = StartVideo;
+        g_Table.StopVideo = StopVideo;
         g_Table.StartAudio = StartAudio;
+        g_Table.StopAudio = StopAudio;
         g_Table.StopProcessing = StopProcessing;
         g_Table.InjectInput = InjectInput;
         g_Table.RequestIdr = []() {
-            mail::man->event<bool>(mail::idr)->raise(true);
+            std::lock_guard<std::mutex> lock(g_VidMutex);
+            if (g_VideoMail) {
+                g_VideoMail->event<bool>(mail::idr)->raise(true);
+            } else {
+                mail::man->event<bool>(mail::idr)->raise(true); // fallback
+            }
         };
 
         int res = loadFunc(&g_Table, bridge_dll_path);

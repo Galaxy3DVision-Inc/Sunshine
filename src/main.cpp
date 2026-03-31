@@ -27,6 +27,10 @@
 #include "upnp.h"
 #include "video.h"
 
+#ifdef SUNSHINE_XLANG_BRIDGE
+#include "../xbridge/xlang_bridge_runner.h"
+#endif
+
 extern "C" {
 #include "rswrapper.h"
 }
@@ -391,6 +395,7 @@ int main(int argc, char *argv[]) {
     return lifetime::desired_exit_code;
   }
 
+#ifndef SUNSHINE_XLANG_BRIDGE
   std::thread httpThread {nvhttp::start};
   std::thread configThread {confighttp::start};
   std::thread rtspThread {rtsp_stream::start};
@@ -422,6 +427,9 @@ int main(int argc, char *argv[]) {
   httpThread.join();
   configThread.join();
   rtspThread.join();
+#else
+  xlang_bridge_runner::Start("sunshine_bridge.dll");
+#endif
 
   task_pool.stop();
   task_pool.join();

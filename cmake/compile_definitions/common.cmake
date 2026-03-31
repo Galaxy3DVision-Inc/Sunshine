@@ -119,7 +119,10 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
+        "${CMAKE_SOURCE_DIR}/xbridge/xlang_bridge_runner.cpp"
         ${PLATFORM_TARGET_FILES})
+
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_XLANG_BRIDGE=1)
 
 if(NOT SUNSHINE_ASSETS_DIR_DEF)
     set(SUNSHINE_ASSETS_DIR_DEF "${SUNSHINE_ASSETS_DIR}")

@@ -1,0 +1,162 @@
+C:/Galaxy3DVision/Projects/sunshine
+Sunshine Branch: master
+PROJECT_FQDN: dev.lizardbyte.app.Sunshine
+PROJECT_NAME: Sunshine
+PROJECT_VERSION: 0.0.0
+PROJECT_VERSION_MAJOR: 0
+PROJECT_VERSION_MINOR: 0
+PROJECT_VERSION_PATCH: 0
+CMAKE_PROJECT_VERSION: 0.0.0
+CMAKE_PROJECT_VERSION_MAJOR: 0
+CMAKE_PROJECT_VERSION_MINOR: 0
+CMAKE_PROJECT_VERSION_PATCH: 0
+RC_VERSION_BUILD: 0
+RC_VERSION_REVISION: 0
+PROJECT_YEAR: 1990
+PROJECT_MONTH: 01
+PROJECT_DAY: 01
+CMake Warning at cmake/macros/common.cmake:27 (_find_package):
+  Could not find a configuration file for package "Boost" that exactly
+  matches requested version "1.89.0".
+
+  The following configuration files were considered but not accepted:
+
+    C:/Galaxy3DVision/Projects/msys64/ucrt64/lib/cmake/Boost-1.90.0/BoostConfig.cmake, version: 1.90.0
+      The version found is not compatible with the version requested.
+
+Call Stack (most recent call first):
+  cmake/dependencies/Boost_Sunshine.cmake:33 (find_package)
+  cmake/dependencies/common.cmake:9 (include)
+  CMakeLists.txt:61 (include)
+
+
+-- Boost v1.89.0 package not found in the system. Falling back to FetchContent.
+-- Boost: Release build, static libraries, MPI OFF, Python OFF, testing OFF
+-- Boost: libraries included: filesystem;locale;log;program_options;system;algorithm;preprocessor;scope;uuid;asio;crc;format;process;property_tree
+-- Boost.Charconv: quadmath support ON
+-- Boost.Context: architecture x86_64, binary format pe, ABI ms, assembler gas, suffix .asm, implementation fcontext
+-- Found ICU: C:/Galaxy3DVision/Projects/msys64/ucrt64/include (found suitable version "78.3", minimum required is "4.8.1") found components: data i18n uc
+-- Boost.Locale: iconv ON, ICU ON, POSIX OFF, std ON, winapi ON
+-- Found ICU: C:/Galaxy3DVision/Projects/msys64/ucrt64/include (found version "78.3") found components: data i18n uc
+-- Boost.Thread: threading API is win32
+-- Boost include dirs: $<BUILD_INTERFACE:C:/Galaxy3DVision/Projects/sunshine/build/_deps/boost-src/libs/headers/include>
+-- Boost libraries: Boost::filesystem;Boost::locale;Boost::log;Boost::program_options;Boost::system;Boost::algorithm;Boost::preprocessor;Boost::scope;Boost::uuid;Boost::asio;Boost::crc;Boost::format;Boost::process;Boost::property_tree
+CMake Deprecation Warning at third-party/Simple-Web-Server/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- nlohmann_json v3.11.x package not found in the system. Falling back to FetchContent.
+-- Using the multi-header code from C:/Galaxy3DVision/Projects/sunshine/build/_deps/json-src/include/
+-- nlohmann_json v3.11.x package not found in the system. Falling back to FetchContent.
+-- Using FFmpeg from build-deps tag: v2026.221.143859
+-- Using existing FFmpeg binaries at C:/Galaxy3DVision/Projects/sunshine/build/_deps/ffmpeg
+-- Found Doxygen: C:/Galaxy3DVision/Projects/msys64/ucrt64/bin/doxygen.exe (found suitable version "1.16.1", minimum required is "1.10") found components: doxygen dot
+-- DOXYGEN_BUILD_DIR_CMAKE: C:/Galaxy3DVision/Projects/sunshine/build/docs/build
+-- DOXYGEN_BUILD_DIR_RELATIVE: ../build/docs/build
+-- [download 0% complete]
+-- [download 1% complete]
+-- [download 2% complete]
+-- [download 3% complete]
+-- [download 4% complete]
+-- [download 5% complete]
+-- [download 6% complete]
+-- [download 7% complete]
+-- [download 8% complete]
+-- [download 11% complete]
+-- [download 12% complete]
+-- [download 13% complete]
+-- [download 14% complete]
+-- [download 15% complete]
+-- [download 16% complete]
+-- [download 17% complete]
+-- [download 18% complete]
+-- [download 19% complete]
+-- [download 20% complete]
+-- [download 21% complete]
+-- [download 22% complete]
+-- [download 23% complete]
+-- [download 24% complete]
+-- [download 25% complete]
+-- [download 26% complete]
+-- [download 27% complete]
+-- [download 28% complete]
+-- [download 29% complete]
+-- [download 30% complete]
+-- [download 31% complete]
+-- [download 34% complete]
+-- [download 37% complete]
+-- [download 38% complete]
+-- [download 39% complete]
+-- [download 40% complete]
+-- [download 41% complete]
+-- [download 42% complete]
+-- [download 43% complete]
+-- [download 44% complete]
+-- [download 45% complete]
+-- [download 46% complete]
+-- [download 47% complete]
+-- [download 48% complete]
+-- [download 49% complete]
+-- [download 50% complete]
+-- [download 51% complete]
+-- [download 52% complete]
+-- [download 53% complete]
+-- [download 54% complete]
+-- [download 55% complete]
+-- [download 56% complete]
+-- [download 57% complete]
+-- [download 58% complete]
+-- [download 59% complete]
+-- [download 60% complete]
+-- [download 61% complete]
+-- [download 62% complete]
+-- [download 63% complete]
+-- [download 64% complete]
+-- [download 65% complete]
+-- [download 66% complete]
+-- [download 67% complete]
+-- [download 68% complete]
+-- [download 69% complete]
+-- [download 70% complete]
+-- [download 71% complete]
+-- [download 72% complete]
+-- [download 73% complete]
+-- [download 74% complete]
+-- [download 75% complete]
+-- [download 76% complete]
+-- [download 77% complete]
+-- [download 78% complete]
+-- [download 79% complete]
+-- [download 80% complete]
+-- [download 81% complete]
+-- [download 82% complete]
+-- [download 83% complete]
+-- [download 84% complete]
+-- [download 85% complete]
+-- [download 86% complete]
+-- [download 87% complete]
+-- [download 88% complete]
+-- [download 89% complete]
+-- [download 90% complete]
+-- [download 91% complete]
+-- [download 92% complete]
+-- [download 93% complete]
+-- [download 94% complete]
+-- [download 95% complete]
+-- [download 96% complete]
+-- [download 97% complete]
+-- [download 98% complete]
+-- [download 99% complete]
+-- [download 100% complete]
+Junction created for C:\Galaxy3DVision\Projects\sunshine\build\assets\shaders <<===>> C:\Galaxy3DVision\Projects\sunshine\src_assets\windows\assets\shaders
+You can invoke the tool using the following command: wix
+Tool 'wix' (version '4.0.4') was successfully installed.
+-- cpack package directory: C:/Galaxy3DVision/Projects/sunshine/build/cpack_artifacts
+-- Configuring done (11.1s)
+-- Generating done (0.6s)
+-- Build files have been written to: C:/Galaxy3DVision/Projects/sunshine/build

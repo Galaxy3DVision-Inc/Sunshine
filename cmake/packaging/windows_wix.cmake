@@ -27,7 +27,7 @@ execute_process(
 )
 
 if(NOT WIX_INSTALL_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to install WiX tools locally.
+    message(WARNING "Failed to install WiX tools locally.
      WiX packaging may not work correctly, error: ${WIX_INSTALL_OUTPUT}")
 endif()
 
@@ -40,7 +40,7 @@ execute_process(
 )
 
 if(NOT WIX_UI_INSTALL_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to install WiX UI extension, error: ${WIX_UI_INSTALL_OUTPUT}")
+    message(WARNING "Failed to install WiX UI extension, error: ${WIX_UI_INSTALL_OUTPUT}")
 endif()
 
 # Install WiX Util Extension
@@ -52,7 +52,7 @@ execute_process(
 )
 
 if(NOT WIX_UTIL_INSTALL_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to install WiX Util extension, error: ${WIX_UTIL_INSTALL_OUTPUT}")
+    message(WARNING "Failed to install WiX Util extension, error: ${WIX_UTIL_INSTALL_OUTPUT}")
 endif()
 
 # Set WiX-specific variables

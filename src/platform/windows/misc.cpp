@@ -122,7 +122,11 @@ namespace platf {
   std::filesystem::path appdata() {
     WCHAR sunshine_path[MAX_PATH];
     GetModuleFileNameW(nullptr, sunshine_path, _countof(sunshine_path));
+#ifndef SUNSHINE_MINIMAL
     return std::filesystem::path {sunshine_path}.remove_filename() / L"config"sv;
+#else
+    return std::filesystem::path {sunshine_path}.remove_filename();
+#endif
   }
 
   std::string from_sockaddr(const sockaddr *const socket_address) {

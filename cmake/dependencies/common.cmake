@@ -1,9 +1,11 @@
 # load common dependencies
 # this file will also load platform specific dependencies
 
+if(NOT SUNSHINE_MINIMAL)
 # Resolve OpenSSL before subprojects run their own find_package(OpenSSL) calls.
 # This ensures a user-provided OPENSSL_ROOT_DIR is honored consistently.
 find_package(OpenSSL REQUIRED)
+endif()
 
 # boost, this should be before Simple-Web-Server as it also depends on boost
 include(dependencies/Boost_Sunshine)
@@ -13,8 +15,10 @@ include(dependencies/Boost_Sunshine)
 set(ENET_NO_INSTALL ON CACHE BOOL "Don't install any libraries built for enet")
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet")
 
+if(NOT SUNSHINE_MINIMAL)
 # web server
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/Simple-Web-Server")
+endif()
 
 # libdisplaydevice
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libdisplaydevice")
@@ -23,11 +27,16 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libdisplaydevice")
 include("${CMAKE_MODULE_PATH}/dependencies/nlohmann_json.cmake")
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
-pkg_check_modules(CURL REQUIRED libcurl)
 
+if(NOT SUNSHINE_MINIMAL)
+pkg_check_modules(CURL REQUIRED libcurl)
+endif()
+
+if(NOT SUNSHINE_MINIMAL)
 # miniupnp
 pkg_check_modules(MINIUPNP miniupnpc REQUIRED)
 include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
+endif()
 
 # ffmpeg pre-compiled binaries
 include("${CMAKE_MODULE_PATH}/dependencies/ffmpeg.cmake")

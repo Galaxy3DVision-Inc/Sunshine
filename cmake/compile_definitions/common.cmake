@@ -63,8 +63,6 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/RtspParser.c"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Video.h"
         "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray.h"
-        "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
-        "${CMAKE_SOURCE_DIR}/src/upnp.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
         "${CMAKE_SOURCE_DIR}/src/utility.h"
         "${CMAKE_SOURCE_DIR}/src/uuid.h"
@@ -82,16 +80,6 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/logging.h"
         "${CMAKE_SOURCE_DIR}/src/main.cpp"
         "${CMAKE_SOURCE_DIR}/src/main.h"
-        "${CMAKE_SOURCE_DIR}/src/crypto.cpp"
-        "${CMAKE_SOURCE_DIR}/src/crypto.h"
-        "${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
-        "${CMAKE_SOURCE_DIR}/src/nvhttp.h"
-        "${CMAKE_SOURCE_DIR}/src/httpcommon.cpp"
-        "${CMAKE_SOURCE_DIR}/src/httpcommon.h"
-        "${CMAKE_SOURCE_DIR}/src/confighttp.cpp"
-        "${CMAKE_SOURCE_DIR}/src/confighttp.h"
-        "${CMAKE_SOURCE_DIR}/src/rtsp.cpp"
-        "${CMAKE_SOURCE_DIR}/src/rtsp.h"
         "${CMAKE_SOURCE_DIR}/src/stream.cpp"
         "${CMAKE_SOURCE_DIR}/src/stream.h"
         "${CMAKE_SOURCE_DIR}/src/video.cpp"
@@ -122,6 +110,26 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/xbridge/xlang_bridge_runner.cpp"
         ${PLATFORM_TARGET_FILES})
 
+if(NOT SUNSHINE_MINIMAL)
+    list(APPEND SUNSHINE_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
+            "${CMAKE_SOURCE_DIR}/src/upnp.h"
+            "${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
+            "${CMAKE_SOURCE_DIR}/src/nvhttp.h"
+            "${CMAKE_SOURCE_DIR}/src/httpcommon.cpp"
+            "${CMAKE_SOURCE_DIR}/src/httpcommon.h"
+            "${CMAKE_SOURCE_DIR}/src/confighttp.cpp"
+            "${CMAKE_SOURCE_DIR}/src/confighttp.h"
+            "${CMAKE_SOURCE_DIR}/src/rtsp.cpp"
+            "${CMAKE_SOURCE_DIR}/src/rtsp.h"
+    )
+endif()
+
+if(SUNSHINE_MINIMAL)
+    list(APPEND SUNSHINE_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/crypto_stub.cpp")
+endif()
+
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_MINIMAL=1)
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_XLANG_BRIDGE=1)
 
 if(NOT SUNSHINE_ASSETS_DIR_DEF)
@@ -145,14 +153,16 @@ include_directories(
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
         "${CMAKE_SOURCE_DIR}/third-party/nanors"
         "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
-        ${OPENSSL_INCLUDE_DIR}
         ${Opus_INCLUDE_DIR}
         ${FFMPEG_INCLUDE_DIRS}
         ${Boost_INCLUDE_DIRS}  # has to be the last, or we get runtime error on macOS ffmpeg encoder
 )
 
+if(NOT SUNSHINE_MINIMAL)
+    include_directories(SYSTEM ${OPENSSL_INCLUDE_DIR})
+endif()
+
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
-        ${MINIUPNP_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         enet
         libdisplaydevice::display_device
@@ -160,5 +170,10 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${Opus_LIBRARY}
         ${FFMPEG_LIBRARIES}
         ${Boost_LIBRARIES}
-        ${OPENSSL_LIBRARIES}
         ${PLATFORM_LIBRARIES})
+
+if(NOT SUNSHINE_MINIMAL)
+    list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${MINIUPNP_LIBRARIES} ${OPENSSL_LIBRARIES})
+else()
+    list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${MINIUPNP_LIBRARIES})
+endif()

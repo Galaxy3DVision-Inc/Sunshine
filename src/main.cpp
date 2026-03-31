@@ -14,17 +14,25 @@
 #endif
 
 // local includes
+#ifndef SUNSHINE_MINIMAL
 #include "confighttp.h"
+#endif
 #include "display_device.h"
 #include "entry_handler.h"
 #include "globals.h"
+#ifndef SUNSHINE_MINIMAL
 #include "httpcommon.h"
+#endif
 #include "logging.h"
 #include "main.h"
+#ifndef SUNSHINE_MINIMAL
 #include "nvhttp.h"
+#endif
 #include "process.h"
 #include "system_tray.h"
+#ifndef SUNSHINE_MINIMAL
 #include "upnp.h"
+#endif
 #include "video.h"
 
 #ifdef SUNSHINE_XLANG_BRIDGE
@@ -369,6 +377,7 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Video failed to find working encoder"sv;
   }
 
+#ifndef SUNSHINE_MINIMAL
   if (http::init()) {
     BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
 
@@ -380,6 +389,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+#ifndef SUNSHINE_MINIMAL
   std::unique_ptr<platf::deinit_t> mDNS;
   auto sync_mDNS = std::async(std::launch::async, [&mDNS]() {
     mDNS = platf::publish::start();
@@ -389,6 +399,8 @@ int main(int argc, char *argv[]) {
   auto sync_upnp = std::async(std::launch::async, [&upnp_unmap]() {
     upnp_unmap = upnp::start();
   });
+#endif
+#endif
 
   // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
   if (shutdown_event->peek()) {

@@ -117,19 +117,28 @@ namespace xlang_bridge_runner {
         return 0;
     }
 
+#include <stdio.h>
+
     int Start(const char* bridge_dll_path) {
+        printf("[XBridge] Loading plugin DLL: %s\n", bridge_dll_path);
+        fflush(stdout);
         BOOST_LOG(info) << "[XBridge] Loading plugin DLL: " << bridge_dll_path;
 
 #ifdef _WIN32
         HMODULE hMod = LoadLibraryA(bridge_dll_path);
         if (!hMod) {
-            BOOST_LOG(error) << "[XBridge] Failed to load DLL: " << bridge_dll_path;
+            DWORD last_err = GetLastError();
+            printf("[XBridge] Failed to load DLL: %s. GetLastError=%lu\n", bridge_dll_path, last_err);
+            fflush(stdout);
+            BOOST_LOG(error) << "[XBridge] Failed to load DLL: " << bridge_dll_path << " err=" << last_err;
             return -1;
         }
 
         typedef int (*f_LoadBridge)(void*, const char*);
         f_LoadBridge loadFunc = (f_LoadBridge)GetProcAddress(hMod, "LoadBridge");
         if (!loadFunc) {
+            printf("[XBridge] Failed to find LoadBridge in DLL\n");
+            fflush(stdout);
             BOOST_LOG(error) << "[XBridge] Failed to find LoadBridge in DLL";
             return -1;
         }
@@ -141,6 +150,9 @@ namespace xlang_bridge_runner {
         g_Table.StartAudio = StartAudio;
         g_Table.StopProcessing = StopProcessing;
         g_Table.InjectInput = InjectInput;
+        g_Table.RequestIdr = []() {
+            mail::man->event<bool>(mail::idr)->raise(true);
+        };
 
         int res = loadFunc(&g_Table, bridge_dll_path);
         if (res == 0) {

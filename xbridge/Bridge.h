@@ -15,6 +15,7 @@ extern "C" {
     // Inbound listener types (Sunshine -> XLang)
     typedef void (*f_OnVideoFrame)(const uint8_t* data, int size, bool isIdr, int64_t frameIndex);
     typedef void (*f_OnAudioPacket)(const uint8_t* data, int size, int64_t pts);
+    typedef void (*f_RequestIdr)();
 
 #ifdef __cplusplus
 }
@@ -30,4 +31,5 @@ struct SunshineCallTable
 
     f_OnVideoFrame OnVideoFrame;
     f_OnAudioPacket OnAudioPacket;
+    f_RequestIdr RequestIdr;
 };

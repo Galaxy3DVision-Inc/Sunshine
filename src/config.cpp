@@ -1174,15 +1174,19 @@ namespace config {
     int_f(vars, "max_bitrate", video.max_bitrate);
     double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
+#ifndef SUNSHINE_MINIMAL
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
+#endif
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
     path_f(vars, "log_path", config::sunshine.log_file);
+#ifndef SUNSHINE_MINIMAL
     path_f(vars, "file_state", nvhttp.file_state);
 
     // Must be run after "file_state"
     config::sunshine.credentials_file = config::nvhttp.file_state;
     path_f(vars, "credentials_file", config::sunshine.credentials_file);
+#endif
 
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
@@ -1439,13 +1443,18 @@ namespace config {
       // Create appdata folder if it does not exist
       file_handler::make_directory(platf::appdata().string());
 
+#ifndef SUNSHINE_MINIMAL
       // Create empty config file if it does not exist
       if (!fs::exists(sunshine.config_file)) {
         std::ofstream {sunshine.config_file};
       }
+#endif
 
-      // Read config file
-      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+      // Read config file if it exists, otherwise start with empty config
+      std::unordered_map<std::string, std::string> vars;
+      if (fs::exists(sunshine.config_file)) {
+        vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+      }
 
       for (auto &[name, value] : cmd_vars) {
         vars.insert_or_assign(std::move(name), std::move(value));

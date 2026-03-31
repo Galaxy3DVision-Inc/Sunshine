@@ -351,7 +351,9 @@ int main(int argc, char *argv[]) {
   SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
 #endif
 
+#ifndef SUNSHINE_MINIMAL
   proc::refresh(config::stream.file_apps);
+#endif
 
   // If any of the following fail, we log an error and continue event though sunshine will not function correctly.
   // This allows access to the UI to fix configuration problems or view the logs.

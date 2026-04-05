@@ -442,7 +442,7 @@ int main(int argc, char *argv[]) {
   configThread.join();
   rtspThread.join();
 #else
-  xlang_bridge_runner::Start("sunshine_bridge.dll");
+  xlang_bridge_runner::Start("sunshine_bridge.dll", config::sunshine.sunbridge_port);
 #endif
 
   task_pool.stop();

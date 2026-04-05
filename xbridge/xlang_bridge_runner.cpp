@@ -158,8 +158,8 @@ namespace xlang_bridge_runner {
 
 #include <stdio.h>
 
-    int Start(const char* bridge_dll_path) {
-        printf("[XBridge] Loading plugin DLL: %s\n", bridge_dll_path);
+    int Start(const char* bridge_dll_path, int lrpc_port) {
+        printf("[XBridge] Loading plugin DLL: %s on port %d\n", bridge_dll_path, lrpc_port);
         fflush(stdout);
         BOOST_LOG(info) << "[XBridge] Loading plugin DLL: " << bridge_dll_path;
 
@@ -173,7 +173,7 @@ namespace xlang_bridge_runner {
             return -1;
         }
 
-        typedef int (*f_LoadBridge)(void*, const char*);
+        typedef int (*f_LoadBridge)(void*, const char*, int);
         f_LoadBridge loadFunc = (f_LoadBridge)GetProcAddress(hMod, "LoadBridge");
         if (!loadFunc) {
             printf("[XBridge] Failed to find LoadBridge in DLL\n");
@@ -200,7 +200,7 @@ namespace xlang_bridge_runner {
             }
         };
 
-        int res = loadFunc(&g_Table, bridge_dll_path);
+        int res = loadFunc(&g_Table, bridge_dll_path, lrpc_port);
         if (res == 0) {
             BOOST_LOG(info) << "[XBridge] Sunshine Bridge Loaded Successfully. Host yield active.";
 

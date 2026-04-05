@@ -589,6 +589,8 @@ namespace config {
     false,  // notify_pre_releases
     true,  // system_tray
     {},  // prep commands
+    {}, // csrf_allowed_origins
+    31415, // sunbridge_port
   };
 
   bool endline(char ch) {
@@ -1303,6 +1305,8 @@ namespace config {
     sunshine.csrf_allowed_origins.push_back(std::format("https://127.0.0.1:{}", web_ui_port));
     sunshine.csrf_allowed_origins.push_back(std::format("https://[::1]:{}", web_ui_port));
 #endif
+
+    int_f(vars, "sunbridge_port", sunshine.sunbridge_port);
 
     string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
     string_f(vars, "bind_address", sunshine.bind_address);

@@ -28,6 +28,8 @@ namespace xlang_bridge_runner {
     static std::mutex g_AudMutex;
     static safe::mail_t g_AudioMail = nullptr;
 
+    static std::shared_ptr<input::input_t> g_InputCtx = nullptr;
+
     bool StartVideo(const char* display, int width, int height, int fps, int bitrate) {
         BOOST_LOG(info) << "[XBridge] StartVideo: " << (display ? display : "default") 
                         << " " << width << "x" << height << "@" << fps << " fps " << bitrate << "kbps";
@@ -152,7 +154,13 @@ namespace xlang_bridge_runner {
     }
 
     int InjectInput(const uint8_t* pEventData, int cbSize) {
-        // Advanced input forwarding
+        if (!g_InputCtx || cbSize == 0 || !pEventData) return -1;
+        
+        // Advanced input forwarding: the native binary payload from WebRTC 
+        // DataChannel bypasses standard network streams.
+        std::vector<uint8_t> data(pEventData, pEventData + cbSize);
+        input::passthrough(g_InputCtx, std::move(data));
+        
         return 0;
     }
 
@@ -162,6 +170,10 @@ namespace xlang_bridge_runner {
         printf("[XBridge] Loading plugin DLL: %s on port %d\n", bridge_dll_path, lrpc_port);
         fflush(stdout);
         BOOST_LOG(info) << "[XBridge] Loading plugin DLL: " << bridge_dll_path;
+
+        if (!g_InputCtx) {
+            g_InputCtx = input::alloc(mail::man);
+        }
 
 #ifdef _WIN32
         HMODULE hMod = LoadLibraryA(bridge_dll_path);

@@ -107,6 +107,7 @@ namespace xlang_bridge_runner {
         if (audioSink && audioSink[0] != '\0') {
             config::audio.sink = audioSink;
         }
+        config::audio.stream = true; // Ensure Sunshine actually allows audio capture
 
         safe::mail_t mailSession;
         {
@@ -122,7 +123,7 @@ namespace xlang_bridge_runner {
 
         std::thread([mailSession]() {
             platf::set_thread_name("xbridge::audio_drain");
-            auto packets = mailSession->queue<audio::packet_t>(mail::audio_packets);
+            auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
                 auto& packet = *packetOpt;
@@ -140,9 +141,10 @@ namespace xlang_bridge_runner {
         BOOST_LOG(info) << "[XBridge] StopAudio requested";
         std::lock_guard<std::mutex> lock(g_AudMutex);
         if (g_AudioMail) {
-            if (auto q = g_AudioMail->queue<audio::packet_t>(mail::audio_packets)) {
+            if (auto q = mail::man->queue<audio::packet_t>(mail::audio_packets)) {
                 q->stop();
             }
+            if (auto ev = g_AudioMail->event<bool>(mail::shutdown)) { ev->raise(true); }
             g_AudioMail.reset();
         }
     }

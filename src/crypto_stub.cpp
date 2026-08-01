@@ -1,10 +1,17 @@
 #include "crypto.h"
 #include <string>
+#include <cstdio>
 #include <sys/timeb.h>
+
+namespace {
+    int sunshine_fseeko64(FILE* stream, long long offset, int origin) {
+        return _fseeki64(stream, offset, origin);
+    }
+}
 
 extern "C" {
     // x265 UCRT Time/File Stubs
-    int __imp_fseeko64(void* stream, long long offset, int origin) { return 0; }
+    int (*__imp_fseeko64)(FILE*, long long, int) = sunshine_fseeko64;
     void ftime64(struct __timeb64* timeb) {}
     void _ftime64(struct __timeb64* timeb) {}
 

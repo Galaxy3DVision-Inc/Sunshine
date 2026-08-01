@@ -31,6 +31,10 @@ endif()
 # set the module path, used for includes
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# Sunshine loads Sunbridge dynamically and therefore does not compile XLang
+# sources itself. Keep the same standalone XLang locator available to bridge
+# tooling without imposing an unnecessary Sunshine build dependency.
+
 # export compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

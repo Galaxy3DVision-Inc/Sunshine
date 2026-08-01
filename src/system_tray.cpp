@@ -401,4 +401,17 @@ namespace system_tray {
   }
 
 }  // namespace system_tray
+#else
+  #include <string>
+
+namespace system_tray {
+  int init_tray() { return 1; }
+  int process_tray_events() { return 1; }
+  int end_tray() { return 0; }
+  int init_tray_threaded() { return 1; }
+  void update_tray_playing(std::string) {}
+  void update_tray_pausing(std::string) {}
+  void update_tray_stopped(std::string) {}
+  void update_tray_require_pin() {}
+}
 #endif

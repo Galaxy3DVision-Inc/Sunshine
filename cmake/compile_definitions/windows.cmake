@@ -1,6 +1,10 @@
 # windows specific compile definitions
 
 add_compile_definitions(SUNSHINE_PLATFORM="windows")
+# MinGW's current WinUser declarations gate the dynamically loaded synthetic
+# pointer API behind the RS5 NTDDI level. Sunshine still resolves the symbols
+# at runtime, so this only exposes their types during compilation.
+add_compile_definitions(NTDDI_VERSION=0x0A000006)
 
 enable_language(RC)
 set(CMAKE_RC_COMPILER windres)

@@ -1,4 +1,4 @@
-#include "xlang_bridge_runner.h"
+#include "sunbridge_runner.h"
 #include "Bridge.h"
 
 // core sunshine logic
@@ -17,7 +17,7 @@
 #endif
 #include <thread>
 
-namespace xlang_bridge_runner {
+namespace sunbridge_runner {
 
     static SunshineCallTable g_Table = {0};
     
@@ -31,7 +31,7 @@ namespace xlang_bridge_runner {
     static std::shared_ptr<input::input_t> g_InputCtx = nullptr;
 
     bool StartVideo(const char* display, int width, int height, int fps, int bitrate) {
-        BOOST_LOG(info) << "[XBridge] StartVideo: " << (display ? display : "default") 
+        BOOST_LOG(info) << "[SunbridgeRunner] StartVideo: " << (display ? display : "default") 
                         << " " << width << "x" << height << "@" << fps << " fps " << bitrate << "kbps";
 
         video::config_t cfg{};
@@ -47,36 +47,45 @@ namespace xlang_bridge_runner {
             config::video.output_name = display;
         }
 
-        safe::mail_t mailSession;
+        // Sunshine's synchronous capture worker publishes encoded packets on
+        // the process-global mail bus.  Using a private mail instance here
+        // starts capture but leaves the drain queue empty on Windows/QSV.
+        // Each Smoora display already owns a separate Sunshine process, so the
+        // global bus remains isolated per display.
         {
             std::lock_guard<std::mutex> lock(g_VidMutex);
-            g_VideoMail = std::make_shared<safe::mail_raw_t>();
-            mailSession = g_VideoMail;
+            g_VideoMail = mail::man;
         }
 
-        std::thread([cfg, mailSession]() {
-            platf::set_thread_name("xbridge::video");
-            // capture() takes a mail object natively
-            video::capture(mailSession, cfg, nullptr);
+        // Hold the consumer queue before capture starts. The mail registry uses
+        // weak references, so this also guarantees the encoder and drain thread
+        // share the exact same queue from the first IDR onward.
+        auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
+
+        std::thread([cfg]() {
+            platf::set_thread_name("sunbridge::video");
+            video::capture(mail::man, cfg, nullptr);
+            BOOST_LOG(warning) << "[SunbridgeRunner] Video capture worker exited";
         }).detach();
 
         // NAL draining thread
-        std::thread([mailSession]() {
-            platf::set_thread_name("xbridge::video_drain");
+        std::thread([packets]() {
+            platf::set_thread_name("sunbridge::video_drain");
 
-            // MUST subscribe to video_packets IMMEDIATELY before sleeping
-            // so that we don't miss the initial IDR containing SPS/PPS
-            auto packets = mailSession->queue<video::packet_t>(mail::video_packets);
-
-            // Give the encoder ~1 second to spin up and compile shaders
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            
-            BOOST_LOG(info) << "[XBridge] Bootstrapping IDR request to spin up encoder...";
-            auto ev_idr = mailSession->event<bool>(mail::idr);
-            ev_idr->raise(true);
+            // Drain from the first encoded packet. Delaying this consumer used
+            // to accumulate roughly one second of video and then burst it into
+            // Sunbridge, which forced dependency-chain drops and extra IDRs.
+            // video::capture() already requests an IDR before encoding starts.
+            bool reportedFirstFrame = false;
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
                 auto& packet = *packetOpt;
+                if (!reportedFirstFrame) {
+                    BOOST_LOG(info) << "[SunbridgeRunner] First encoded frame: bytes="
+                                    << packet.data_size() << " idr=" << packet.is_idr()
+                                    << " index=" << packet.frame_index();
+                    reportedFirstFrame = true;
+                }
                 if (g_Table.OnVideoFrame) {
                     g_Table.OnVideoFrame(packet.data(), (int)packet.data_size(), packet.is_idr(), packet.frame_index());
                 }
@@ -87,7 +96,7 @@ namespace xlang_bridge_runner {
     }
 
     void StopVideo() {
-        BOOST_LOG(info) << "[XBridge] StopVideo requested";
+        BOOST_LOG(info) << "[SunbridgeRunner] StopVideo requested";
         std::lock_guard<std::mutex> lock(g_VidMutex);
         if (g_VideoMail) {
             if (auto q = g_VideoMail->queue<video::packet_t>(mail::video_packets)) {
@@ -98,7 +107,7 @@ namespace xlang_bridge_runner {
     }
 
     bool StartAudio(const char* audioSink) {
-        BOOST_LOG(info) << "[XBridge] StartAudio: " << (audioSink ? audioSink : "default");
+        BOOST_LOG(info) << "[SunbridgeRunner] StartAudio: " << (audioSink ? audioSink : "default");
 
         audio::config_t cfg{};
         cfg.packetDuration = 5;
@@ -117,12 +126,12 @@ namespace xlang_bridge_runner {
         }
 
         std::thread([cfg, mailSession]() {
-            platf::set_thread_name("xbridge::audio");
+            platf::set_thread_name("sunbridge::audio");
             audio::capture(mailSession, cfg, nullptr);
         }).detach();
 
         std::thread([mailSession]() {
-            platf::set_thread_name("xbridge::audio_drain");
+            platf::set_thread_name("sunbridge::audio_drain");
             auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
@@ -138,7 +147,7 @@ namespace xlang_bridge_runner {
     }
 
     void StopAudio() {
-        BOOST_LOG(info) << "[XBridge] StopAudio requested";
+        BOOST_LOG(info) << "[SunbridgeRunner] StopAudio requested";
         std::lock_guard<std::mutex> lock(g_AudMutex);
         if (g_AudioMail) {
             if (auto q = mail::man->queue<audio::packet_t>(mail::audio_packets)) {
@@ -150,7 +159,7 @@ namespace xlang_bridge_runner {
     }
 
     void StopProcessing() {
-        BOOST_LOG(info) << "[XBridge] Stop requested";
+        BOOST_LOG(info) << "[SunbridgeRunner] Stop requested";
         auto shutdown_event = mail::man->event<bool>(mail::shutdown);
         shutdown_event->raise(true);
     }
@@ -169,9 +178,9 @@ namespace xlang_bridge_runner {
 #include <stdio.h>
 
     int Start(const char* bridge_dll_path, int lrpc_port) {
-        printf("[XBridge] Loading plugin DLL: %s on port %d\n", bridge_dll_path, lrpc_port);
+        printf("[SunbridgeRunner] Loading plugin DLL: %s on port %d\n", bridge_dll_path, lrpc_port);
         fflush(stdout);
-        BOOST_LOG(info) << "[XBridge] Loading plugin DLL: " << bridge_dll_path;
+        BOOST_LOG(info) << "[SunbridgeRunner] Loading plugin DLL: " << bridge_dll_path;
 
         if (!g_InputCtx) {
             g_InputCtx = input::alloc(mail::man);
@@ -182,24 +191,24 @@ namespace xlang_bridge_runner {
         HMODULE hMod = LoadLibraryA(bridge_dll_path);
         if (!hMod) {
             DWORD last_err = GetLastError();
-            printf("[XBridge] Failed to load DLL: %s. GetLastError=%lu\n", bridge_dll_path, last_err);
+            printf("[SunbridgeRunner] Failed to load DLL: %s. GetLastError=%lu\n", bridge_dll_path, last_err);
             fflush(stdout);
-            BOOST_LOG(error) << "[XBridge] Failed to load DLL: " << bridge_dll_path << " err=" << last_err;
+            BOOST_LOG(error) << "[SunbridgeRunner] Failed to load DLL: " << bridge_dll_path << " err=" << last_err;
             return -1;
         }
 
         f_LoadBridge loadFunc = (f_LoadBridge)GetProcAddress(hMod, "LoadBridge");
         if (!loadFunc) {
-            printf("[XBridge] Failed to find LoadBridge in DLL\n");
+            printf("[SunbridgeRunner] Failed to find LoadBridge in DLL\n");
             fflush(stdout);
-            BOOST_LOG(error) << "[XBridge] Failed to find LoadBridge in DLL";
+            BOOST_LOG(error) << "[SunbridgeRunner] Failed to find LoadBridge in DLL";
             return -1;
         }
 #else
         void* hMod = dlopen(bridge_dll_path, RTLD_NOW | RTLD_LOCAL);
         if (!hMod) {
             const char* dlError = dlerror();
-            BOOST_LOG(error) << "[XBridge] Failed to load bridge: "
+            BOOST_LOG(error) << "[SunbridgeRunner] Failed to load bridge: "
                              << bridge_dll_path << " err="
                              << (dlError ? dlError : "unknown");
             return -1;
@@ -207,7 +216,7 @@ namespace xlang_bridge_runner {
         dlerror();
         f_LoadBridge loadFunc = reinterpret_cast<f_LoadBridge>(dlsym(hMod, "LoadBridge"));
         if (const char* dlError = dlerror(); dlError || !loadFunc) {
-            BOOST_LOG(error) << "[XBridge] Failed to find LoadBridge in bridge: "
+            BOOST_LOG(error) << "[SunbridgeRunner] Failed to find LoadBridge in bridge: "
                              << (dlError ? dlError : "unknown");
             return -1;
         }
@@ -230,14 +239,14 @@ namespace xlang_bridge_runner {
 
         int res = loadFunc(&g_Table, bridge_dll_path, lrpc_port);
         if (res == 0) {
-            BOOST_LOG(info) << "[XBridge] Sunshine Bridge Loaded Successfully. Host yield active.";
+            BOOST_LOG(info) << "[SunbridgeRunner] Sunshine Bridge Loaded Successfully. Host yield active.";
 
             // Block the main thread until shutdown is triggered
             auto shutdown_event = mail::man->event<bool>(mail::shutdown);
             while (!shutdown_event->peek()) {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
-            BOOST_LOG(info) << "[XBridge] Shutdown triggered. Exiting host loop.";
+            BOOST_LOG(info) << "[SunbridgeRunner] Shutdown triggered. Exiting host loop.";
         }
         return res;
     }

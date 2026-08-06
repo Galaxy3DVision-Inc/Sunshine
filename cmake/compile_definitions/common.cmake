@@ -107,7 +107,7 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
-        "${CMAKE_SOURCE_DIR}/xbridge/xlang_bridge_runner.cpp"
+        "${CMAKE_SOURCE_DIR}/xbridge/sunbridge_runner.cpp"
         ${PLATFORM_TARGET_FILES})
 
 if(NOT SUNSHINE_MINIMAL)

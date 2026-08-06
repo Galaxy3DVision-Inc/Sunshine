@@ -36,7 +36,7 @@
 #include "video.h"
 
 #ifdef SUNSHINE_XLANG_BRIDGE
-#include "../xbridge/xlang_bridge_runner.h"
+#include "../xbridge/sunbridge_runner.h"
 #endif
 
 extern "C" {
@@ -440,10 +440,12 @@ int main(int argc, char *argv[]) {
   configThread.join();
   rtspThread.join();
 #else
-#ifdef __APPLE__
-  xlang_bridge_runner::Start("libsunshine_bridge.dylib", config::sunshine.sunbridge_port);
+#ifdef _WIN32
+  sunbridge_runner::Start("sunshine_bridge.dll", config::sunshine.sunbridge_port);
+#elif defined(__APPLE__)
+  sunbridge_runner::Start("libsunshine_bridge.dylib", config::sunshine.sunbridge_port);
 #else
-  xlang_bridge_runner::Start("libsunshine_bridge.so", config::sunshine.sunbridge_port);
+  sunbridge_runner::Start("libsunshine_bridge.so", config::sunshine.sunbridge_port);
 #endif
 #endif
 

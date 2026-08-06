@@ -3,17 +3,21 @@
 #include <cstdio>
 #include <sys/timeb.h>
 
+#ifdef _WIN32
 namespace {
     int sunshine_fseeko64(FILE* stream, long long offset, int origin) {
         return _fseeki64(stream, offset, origin);
     }
 }
+#endif
 
 extern "C" {
+#ifdef _WIN32
     // x265 UCRT Time/File Stubs
     int (*__imp_fseeko64)(FILE*, long long, int) = sunshine_fseeko64;
     void ftime64(struct __timeb64* timeb) {}
     void _ftime64(struct __timeb64* timeb) {}
+#endif
 
     // OpenSSL Stubs
     void EVP_MD_CTX_free(EVP_MD_CTX*) {}

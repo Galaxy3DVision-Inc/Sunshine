@@ -177,6 +177,7 @@ namespace xlang_bridge_runner {
             g_InputCtx = input::alloc(mail::man);
         }
 
+        typedef int (*f_LoadBridge)(void*, const char*, int);
 #ifdef _WIN32
         HMODULE hMod = LoadLibraryA(bridge_dll_path);
         if (!hMod) {
@@ -187,7 +188,6 @@ namespace xlang_bridge_runner {
             return -1;
         }
 
-        typedef int (*f_LoadBridge)(void*, const char*, int);
         f_LoadBridge loadFunc = (f_LoadBridge)GetProcAddress(hMod, "LoadBridge");
         if (!loadFunc) {
             printf("[XBridge] Failed to find LoadBridge in DLL\n");
@@ -196,7 +196,21 @@ namespace xlang_bridge_runner {
             return -1;
         }
 #else
-        return -1; // Fallback
+        void* hMod = dlopen(bridge_dll_path, RTLD_NOW | RTLD_LOCAL);
+        if (!hMod) {
+            const char* dlError = dlerror();
+            BOOST_LOG(error) << "[XBridge] Failed to load bridge: "
+                             << bridge_dll_path << " err="
+                             << (dlError ? dlError : "unknown");
+            return -1;
+        }
+        dlerror();
+        f_LoadBridge loadFunc = reinterpret_cast<f_LoadBridge>(dlsym(hMod, "LoadBridge"));
+        if (const char* dlError = dlerror(); dlError || !loadFunc) {
+            BOOST_LOG(error) << "[XBridge] Failed to find LoadBridge in bridge: "
+                             << (dlError ? dlError : "unknown");
+            return -1;
+        }
 #endif
 
         g_Table.StartVideo = StartVideo;

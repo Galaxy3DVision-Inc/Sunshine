@@ -440,7 +440,11 @@ int main(int argc, char *argv[]) {
   configThread.join();
   rtspThread.join();
 #else
-  xlang_bridge_runner::Start("sunshine_bridge.dll", config::sunshine.sunbridge_port);
+#ifdef __APPLE__
+  xlang_bridge_runner::Start("libsunshine_bridge.dylib", config::sunshine.sunbridge_port);
+#else
+  xlang_bridge_runner::Start("libsunshine_bridge.so", config::sunshine.sunbridge_port);
+#endif
 #endif
 
   task_pool.stop();

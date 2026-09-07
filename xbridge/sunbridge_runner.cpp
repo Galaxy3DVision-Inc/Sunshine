@@ -25,12 +25,32 @@ namespace sunbridge_runner {
     // instead of relying on the global mail::man router.
     static std::mutex g_VidMutex;
     static safe::mail_t g_VideoMail = nullptr;
+    static std::mutex g_VideoLifecycle;
+    static std::thread g_VideoCapture;
+    static std::thread g_VideoDrain;
     static std::mutex g_AudMutex;
     static safe::mail_t g_AudioMail = nullptr;
+    static std::mutex g_AudioLifecycle;
+    static std::thread g_AudioCapture;
+    static std::thread g_AudioDrain;
 
     static std::shared_ptr<input::input_t> g_InputCtx = nullptr;
 
+    void StopVideoLocked() {
+        safe::mail_t session;
+        {
+            std::lock_guard<std::mutex> lock(g_VidMutex);
+            session = std::move(g_VideoMail);
+        }
+        if (session) session->event<bool>(mail::shutdown)->raise(true);
+        if (g_VideoCapture.joinable()) g_VideoCapture.join();
+        if (session) session->queue<video::packet_t>(mail::video_packets)->stop();
+        if (g_VideoDrain.joinable()) g_VideoDrain.join();
+    }
+
     bool StartVideo(const char* display, int width, int height, int fps, int bitrate) {
+        std::lock_guard<std::mutex> lifecycle(g_VideoLifecycle);
+        StopVideoLocked();
         BOOST_LOG(info) << "[SunbridgeRunner] StartVideo: " << (display ? display : "default") 
                         << " " << width << "x" << height << "@" << fps << " fps " << bitrate << "kbps";
 
@@ -47,29 +67,28 @@ namespace sunbridge_runner {
             config::video.output_name = display;
         }
 
-        // Sunshine's synchronous capture worker publishes encoded packets on
-        // the process-global mail bus.  Using a private mail instance here
-        // starts capture but leaves the drain queue empty on Windows/QSV.
-        // Each Smoora display already owns a separate Sunshine process, so the
-        // global bus remains isolated per display.
+        // Capture and drain share one owned session. Stopping it does not shut
+        // down Sunshine's process-global mail bus, so a stream can restart.
+        auto session = std::make_shared<safe::mail_raw_t>();
         {
             std::lock_guard<std::mutex> lock(g_VidMutex);
-            g_VideoMail = mail::man;
+            g_VideoMail = session;
         }
 
         // Hold the consumer queue before capture starts. The mail registry uses
         // weak references, so this also guarantees the encoder and drain thread
         // share the exact same queue from the first IDR onward.
-        auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
+        auto packets = session->queue<video::packet_t>(mail::video_packets);
+        auto shutdown = session->event<bool>(mail::shutdown);
 
-        std::thread([cfg]() {
+        g_VideoCapture = std::thread([cfg, session, shutdown]() {
             platf::set_thread_name("sunbridge::video");
-            video::capture(mail::man, cfg, nullptr);
+            video::capture(session, cfg, nullptr);
             BOOST_LOG(warning) << "[SunbridgeRunner] Video capture worker exited";
-        }).detach();
+        });
 
         // NAL draining thread
-        std::thread([packets]() {
+        g_VideoDrain = std::thread([packets]() {
             platf::set_thread_name("sunbridge::video_drain");
 
             // Drain from the first encoded packet. Delaying this consumer used
@@ -90,28 +109,36 @@ namespace sunbridge_runner {
                     g_Table.OnVideoFrame(packet.data(), (int)packet.data_size(), packet.is_idr(), packet.frame_index());
                 }
             }
-        }).detach();
+        });
 
         return true;
     }
 
     void StopVideo() {
         BOOST_LOG(info) << "[SunbridgeRunner] StopVideo requested";
-        std::lock_guard<std::mutex> lock(g_VidMutex);
-        if (g_VideoMail) {
-            if (auto q = g_VideoMail->queue<video::packet_t>(mail::video_packets)) {
-                q->stop();
-            }
-            g_VideoMail.reset();
+        std::lock_guard<std::mutex> lifecycle(g_VideoLifecycle);
+        StopVideoLocked();
+    }
+
+    void StopAudioLocked() {
+        if (g_AudioMail) g_AudioMail->event<bool>(mail::shutdown)->raise(true);
+        if (g_AudioCapture.joinable()) g_AudioCapture.join();
+        if (g_AudioDrain.joinable()) {
+            mail::man->queue<audio::packet_t>(mail::audio_packets)->stop();
+            g_AudioDrain.join();
         }
+        g_AudioMail.reset();
     }
 
     bool StartAudio(const char* audioSink) {
+        std::lock_guard<std::mutex> lifecycle(g_AudioLifecycle);
+        StopAudioLocked();
         BOOST_LOG(info) << "[SunbridgeRunner] StartAudio: " << (audioSink ? audioSink : "default");
 
         audio::config_t cfg{};
         cfg.packetDuration = 5;
         cfg.channels = 2;
+        cfg.flags[audio::config_t::HOST_AUDIO] = true;
 
         if (audioSink && audioSink[0] != '\0') {
             config::audio.sink = audioSink;
@@ -125,14 +152,15 @@ namespace sunbridge_runner {
             mailSession = g_AudioMail;
         }
 
-        std::thread([cfg, mailSession]() {
+        auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
+        auto shutdown = mailSession->event<bool>(mail::shutdown);
+        g_AudioCapture = std::thread([cfg, mailSession, shutdown]() {
             platf::set_thread_name("sunbridge::audio");
             audio::capture(mailSession, cfg, nullptr);
-        }).detach();
+        });
 
-        std::thread([mailSession]() {
+        g_AudioDrain = std::thread([mailSession, packets]() {
             platf::set_thread_name("sunbridge::audio_drain");
-            auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
             while (auto packetOpt = packets->pop()) {
                 if (!packetOpt) break;
                 auto& packet = *packetOpt;
@@ -141,21 +169,15 @@ namespace sunbridge_runner {
                     g_Table.OnAudioPacket(packet_data.begin(), (int)packet_data.size(), 0);
                 }
             }
-        }).detach();
+        });
 
         return true;
     }
 
     void StopAudio() {
         BOOST_LOG(info) << "[SunbridgeRunner] StopAudio requested";
-        std::lock_guard<std::mutex> lock(g_AudMutex);
-        if (g_AudioMail) {
-            if (auto q = mail::man->queue<audio::packet_t>(mail::audio_packets)) {
-                q->stop();
-            }
-            if (auto ev = g_AudioMail->event<bool>(mail::shutdown)) { ev->raise(true); }
-            g_AudioMail.reset();
-        }
+        std::lock_guard<std::mutex> lifecycle(g_AudioLifecycle);
+        StopAudioLocked();
     }
 
     void StopProcessing() {
@@ -187,6 +209,7 @@ namespace sunbridge_runner {
         }
 
         typedef int (*f_LoadBridge)(void*, const char*, int);
+        typedef void (*f_UnloadBridge)();
 #ifdef _WIN32
         HMODULE hMod = LoadLibraryA(bridge_dll_path);
         if (!hMod) {
@@ -198,10 +221,12 @@ namespace sunbridge_runner {
         }
 
         f_LoadBridge loadFunc = (f_LoadBridge)GetProcAddress(hMod, "LoadBridge");
-        if (!loadFunc) {
+        f_UnloadBridge unloadFunc = (f_UnloadBridge)GetProcAddress(hMod, "UnloadBridge");
+        if (!loadFunc || !unloadFunc) {
             printf("[SunbridgeRunner] Failed to find LoadBridge in DLL\n");
             fflush(stdout);
             BOOST_LOG(error) << "[SunbridgeRunner] Failed to find LoadBridge in DLL";
+            FreeLibrary(hMod);
             return -1;
         }
 #else
@@ -215,9 +240,11 @@ namespace sunbridge_runner {
         }
         dlerror();
         f_LoadBridge loadFunc = reinterpret_cast<f_LoadBridge>(dlsym(hMod, "LoadBridge"));
-        if (const char* dlError = dlerror(); dlError || !loadFunc) {
+        f_UnloadBridge unloadFunc = reinterpret_cast<f_UnloadBridge>(dlsym(hMod, "UnloadBridge"));
+        if (const char* dlError = dlerror(); dlError || !loadFunc || !unloadFunc) {
             BOOST_LOG(error) << "[SunbridgeRunner] Failed to find LoadBridge in bridge: "
                              << (dlError ? dlError : "unknown");
+            dlclose(hMod);
             return -1;
         }
 #endif
@@ -238,16 +265,17 @@ namespace sunbridge_runner {
         };
 
         int res = loadFunc(&g_Table, bridge_dll_path, lrpc_port);
-        if (res == 0) {
-            BOOST_LOG(info) << "[SunbridgeRunner] Sunshine Bridge Loaded Successfully. Host yield active.";
-
-            // Block the main thread until shutdown is triggered
-            auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-            while (!shutdown_event->peek()) {
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-            BOOST_LOG(info) << "[SunbridgeRunner] Shutdown triggered. Exiting host loop.";
-        }
+        // LoadBridge owns the connection loop. It returns on manager loss;
+        // stop producers before unloading their callback code.
+        StopAudio();
+        StopVideo();
+        unloadFunc();
+        g_InputCtx.reset();
+#ifdef _WIN32
+        FreeLibrary(hMod);
+#else
+        dlclose(hMod);
+#endif
         return res;
     }
 }

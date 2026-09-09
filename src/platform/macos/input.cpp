@@ -6,6 +6,7 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <vector>
 
 // platform includes
 #include <ApplicationServices/ApplicationServices.h>
@@ -295,7 +296,46 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   void unicode(input_t &input, char *utf8, int size) {
-    BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
+    if (!utf8 || size <= 0) {
+      return;
+    }
+
+    const auto text = CFStringCreateWithBytes(
+      kCFAllocatorDefault,
+      reinterpret_cast<const UInt8 *>(utf8),
+      size,
+      kCFStringEncodingUTF8,
+      false
+    );
+    if (!text) {
+      BOOST_LOG(warning) << "unicode: Invalid UTF-8 input for macOS."sv;
+      return;
+    }
+
+    const auto length = CFStringGetLength(text);
+    std::vector<UniChar> characters(static_cast<std::size_t>(length));
+    if (length > 0) {
+      CFStringGetCharacters(text, CFRangeMake(0, length), characters.data());
+    }
+    CFRelease(text);
+    if (characters.empty()) {
+      return;
+    }
+
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+    auto key_down = CGEventCreateKeyboardEvent(macos_input->source, 0, true);
+    auto key_up = CGEventCreateKeyboardEvent(macos_input->source, 0, false);
+    if (!key_down || !key_up) {
+      if (key_down) CFRelease(key_down);
+      if (key_up) CFRelease(key_up);
+      return;
+    }
+    CGEventKeyboardSetUnicodeString(key_down, length, characters.data());
+    CGEventKeyboardSetUnicodeString(key_up, length, characters.data());
+    CGEventPost(kCGHIDEventTap, key_down);
+    CGEventPost(kCGHIDEventTap, key_up);
+    CFRelease(key_down);
+    CFRelease(key_up);
   }
 
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {

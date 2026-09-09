@@ -522,6 +522,22 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   input_t input() {
+    const void *keys[] = {kAXTrustedCheckOptionPrompt};
+    const void *values[] = {kCFBooleanTrue};
+    const auto options = CFDictionaryCreate(
+      kCFAllocatorDefault,
+      keys,
+      values,
+      1,
+      &kCFTypeDictionaryKeyCallBacks,
+      &kCFTypeDictionaryValueCallBacks
+    );
+    const bool accessibility_trusted = AXIsProcessTrustedWithOptions(options);
+    CFRelease(options);
+    if (!accessibility_trusted) {
+      BOOST_LOG(error) << "Accessibility permission is required for remote keyboard and mouse input. Enable CantorFiberService in System Settings > Privacy & Security > Accessibility."sv;
+    }
+
     input_t result {new macos_input_t()};
 
     const auto macos_input = static_cast<macos_input_t *>(result.get());

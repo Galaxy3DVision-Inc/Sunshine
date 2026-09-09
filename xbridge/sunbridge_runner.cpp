@@ -35,6 +35,7 @@ namespace sunbridge_runner {
     static std::thread g_AudioDrain;
 
     static std::shared_ptr<input::input_t> g_InputCtx = nullptr;
+    static std::mutex g_InputMutex;
 
     void StopVideoLocked() {
         safe::mail_t session;
@@ -73,6 +74,13 @@ namespace sunbridge_runner {
         {
             std::lock_guard<std::mutex> lock(g_VidMutex);
             g_VideoMail = session;
+        }
+        // Absolute input depends on the touch-port geometry published by
+        // video::capture(). Keep the input context on this same per-stream
+        // mail session so browser coordinates can be mapped to the display.
+        {
+            std::lock_guard<std::mutex> lock(g_InputMutex);
+            g_InputCtx = input::alloc(session);
         }
 
         // Hold the consumer queue before capture starts. The mail registry uses
@@ -187,12 +195,19 @@ namespace sunbridge_runner {
     }
 
     int InjectInput(const uint8_t* pEventData, int cbSize) {
-        if (!g_InputCtx || cbSize == 0 || !pEventData) return -1;
+        if (cbSize == 0 || !pEventData) return -1;
+
+        std::shared_ptr<input::input_t> inputCtx;
+        {
+            std::lock_guard<std::mutex> lock(g_InputMutex);
+            inputCtx = g_InputCtx;
+        }
+        if (!inputCtx) return -1;
         
         // Advanced input forwarding: the native binary payload from WebRTC 
         // DataChannel bypasses standard network streams.
         std::vector<uint8_t> data(pEventData, pEventData + cbSize);
-        input::passthrough(g_InputCtx, std::move(data));
+        input::passthrough(inputCtx, std::move(data));
         
         return 0;
     }
@@ -203,10 +218,6 @@ namespace sunbridge_runner {
         printf("[SunbridgeRunner] Loading plugin DLL: %s on port %d\n", bridge_dll_path, lrpc_port);
         fflush(stdout);
         BOOST_LOG(info) << "[SunbridgeRunner] Loading plugin DLL: " << bridge_dll_path;
-
-        if (!g_InputCtx) {
-            g_InputCtx = input::alloc(mail::man);
-        }
 
         typedef int (*f_LoadBridge)(void*, const char*, int);
         typedef void (*f_UnloadBridge)();

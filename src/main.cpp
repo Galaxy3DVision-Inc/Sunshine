@@ -14,21 +14,29 @@
 #endif
 
 // local includes
+#ifndef SUNSHINE_MINIMAL
 #include "confighttp.h"
+#endif
 #include "display_device.h"
 #include "entry_handler.h"
 #include "globals.h"
+#ifndef SUNSHINE_MINIMAL
 #include "httpcommon.h"
+#endif
 #include "logging.h"
 #include "main.h"
+#ifndef SUNSHINE_MINIMAL
 #include "nvhttp.h"
+#endif
 #include "process.h"
 #include "system_tray.h"
+#ifndef SUNSHINE_MINIMAL
 #include "upnp.h"
+#endif
 #include "video.h"
 
 #ifdef SUNSHINE_XLANG_BRIDGE
-#include "../xbridge/xlang_bridge_runner.h"
+#include "../xbridge/sunbridge_runner.h"
 #endif
 
 extern "C" {
@@ -204,10 +212,8 @@ int main(int argc, char *argv[]) {
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
 
-  // Adding guard here first as it also performs recovery after crash,
-  // otherwise people could theoretically end up without display output.
-  // It also should be destroyed before forced shutdown to expedite the cleanup.
-  auto display_device_deinit_guard = display_device::init(platf::appdata() / "display_device.state", config::video);
+  std::string display_state_name = "display_device_" + std::to_string(config::sunshine.sunbridge_port) + ".state";
+  auto display_device_deinit_guard = display_device::init(platf::appdata() / display_state_name, config::video);
   if (!display_device_deinit_guard) {
     BOOST_LOG(error) << "Display device session failed to initialize"sv;
   }
@@ -343,7 +349,9 @@ int main(int argc, char *argv[]) {
   SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
 #endif
 
+#ifndef SUNSHINE_MINIMAL
   proc::refresh(config::stream.file_apps);
+#endif
 
   // If any of the following fail, we log an error and continue event though sunshine will not function correctly.
   // This allows access to the UI to fix configuration problems or view the logs.
@@ -369,6 +377,7 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Video failed to find working encoder"sv;
   }
 
+#ifndef SUNSHINE_MINIMAL
   if (http::init()) {
     BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
 
@@ -380,6 +389,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+#ifndef SUNSHINE_MINIMAL
   std::unique_ptr<platf::deinit_t> mDNS;
   auto sync_mDNS = std::async(std::launch::async, [&mDNS]() {
     mDNS = platf::publish::start();
@@ -389,6 +399,8 @@ int main(int argc, char *argv[]) {
   auto sync_upnp = std::async(std::launch::async, [&upnp_unmap]() {
     upnp_unmap = upnp::start();
   });
+#endif
+#endif
 
   // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
   if (shutdown_event->peek()) {
@@ -428,7 +440,13 @@ int main(int argc, char *argv[]) {
   configThread.join();
   rtspThread.join();
 #else
-  xlang_bridge_runner::Start("sunshine_bridge.dll");
+#ifdef _WIN32
+  sunbridge_runner::Start("sunshine_bridge.dll", config::sunshine.sunbridge_port);
+#elif defined(__APPLE__)
+  sunbridge_runner::Start("libsunshine_bridge.dylib", config::sunshine.sunbridge_port);
+#else
+  sunbridge_runner::Start("libsunshine_bridge.so", config::sunshine.sunbridge_port);
+#endif
 #endif
 
   task_pool.stop();

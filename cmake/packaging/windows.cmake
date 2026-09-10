@@ -119,4 +119,6 @@ set(CPACK_COMPONENT_GAMEPAD_GROUP "Scripts")
 
 # include specific packaging
 include(${CMAKE_MODULE_PATH}/packaging/windows_nsis.cmake)
-include(${CMAKE_MODULE_PATH}/packaging/windows_wix.cmake)
+if(NOT SUNSHINE_MINIMAL)
+    include(${CMAKE_MODULE_PATH}/packaging/windows_wix.cmake)
+endif()

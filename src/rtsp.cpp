@@ -1121,6 +1121,9 @@ namespace rtsp_stream {
   }
 
   void start() {
+#ifdef SUNSHINE_MINIMAL
+    return;
+#endif
     platf::set_thread_name("rtsp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 

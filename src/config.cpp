@@ -24,9 +24,13 @@
 #include "entry_handler.h"
 #include "file_handler.h"
 #include "logging.h"
+#ifndef SUNSHINE_MINIMAL
 #include "nvhttp.h"
+#endif
 #include "platform/common.h"
+#ifndef SUNSHINE_MINIMAL
 #include "rtsp.h"
+#endif
 #include "utility.h"
 
 #ifdef _WIN32
@@ -577,10 +581,16 @@ namespace config {
     47989,  // Base port number
     "ipv4",  // Address family
     {},  // Bind address
+#ifndef SUNSHINE_MINIMAL
     platf::appdata().string() + "/sunshine.log",  // log file
+#else
+    platf::appdata().string() + "/logs/sunshine.log",  // log file
+#endif
     false,  // notify_pre_releases
     true,  // system_tray
     {},  // prep commands
+    {}, // csrf_allowed_origins
+    31415, // sunbridge_port
   };
 
   bool endline(char ch) {
@@ -1166,15 +1176,19 @@ namespace config {
     int_f(vars, "max_bitrate", video.max_bitrate);
     double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
+#ifndef SUNSHINE_MINIMAL
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
+#endif
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
     path_f(vars, "log_path", config::sunshine.log_file);
+#ifndef SUNSHINE_MINIMAL
     path_f(vars, "file_state", nvhttp.file_state);
 
     // Must be run after "file_state"
     config::sunshine.credentials_file = config::nvhttp.file_state;
     path_f(vars, "credentials_file", config::sunshine.credentials_file);
+#endif
 
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
@@ -1214,6 +1228,7 @@ namespace config {
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
 
     path_f(vars, "file_apps", stream.file_apps);
+#ifndef SUNSHINE_MINIMAL
 #ifndef __ANDROID__
     // TODO: Android can possibly support this
     if (!fs::exists(stream.file_apps.c_str())) {
@@ -1224,6 +1239,7 @@ namespace config {
         fs::perm_options::add
       );
     }
+#endif
 #endif
 
     int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
@@ -1277,6 +1293,7 @@ namespace config {
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
     bool_f(vars, "system_tray", sunshine.system_tray);
 
+#ifndef SUNSHINE_MINIMAL
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
     sunshine.port = (std::uint16_t) port;
@@ -1287,6 +1304,9 @@ namespace config {
     sunshine.csrf_allowed_origins.push_back(std::format("https://localhost:{}", web_ui_port));
     sunshine.csrf_allowed_origins.push_back(std::format("https://127.0.0.1:{}", web_ui_port));
     sunshine.csrf_allowed_origins.push_back(std::format("https://[::1]:{}", web_ui_port));
+#endif
+
+    int_f(vars, "sunbridge_port", sunshine.sunbridge_port);
 
     string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
     string_f(vars, "bind_address", sunshine.bind_address);
@@ -1427,13 +1447,18 @@ namespace config {
       // Create appdata folder if it does not exist
       file_handler::make_directory(platf::appdata().string());
 
+#ifndef SUNSHINE_MINIMAL
       // Create empty config file if it does not exist
       if (!fs::exists(sunshine.config_file)) {
         std::ofstream {sunshine.config_file};
       }
+#endif
 
-      // Read config file
-      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+      // Read config file if it exists, otherwise start with empty config
+      std::unordered_map<std::string, std::string> vars;
+      if (fs::exists(sunshine.config_file)) {
+        vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+      }
 
       for (auto &[name, value] : cmd_vars) {
         vars.insert_or_assign(std::move(name), std::move(value));

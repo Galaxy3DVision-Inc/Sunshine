@@ -27,7 +27,7 @@ extern "C" {
 using namespace std::literals;
 
 void launch_ui(const std::optional<std::string> &path) {
-  std::string url = std::format("https://localhost:{}", static_cast<int>(net::map_port(confighttp::PORT_HTTPS)));
+  std::string url = "https://localhost:" + std::to_string(static_cast<int>(net::map_port(confighttp::PORT_HTTPS)));
   if (path) {
     url += *path;
   }

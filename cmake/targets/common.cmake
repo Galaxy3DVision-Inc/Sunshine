@@ -69,6 +69,7 @@ if (NPM_OFFLINE)
     set(NPM_INSTALL_FLAGS "${NPM_INSTALL_FLAGS} --offline")
 endif()
 
+if(NOT SUNSHINE_MINIMAL)
 add_custom_target(web-ui ALL
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Installing NPM Dependencies and Building the Web UI"
@@ -76,6 +77,7 @@ add_custom_target(web-ui ALL
         COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build  # cmake-lint: disable=C0301
         COMMAND_EXPAND_LISTS
         VERBATIM)
+endif()
 
 # docs
 if(BUILD_DOCS)
